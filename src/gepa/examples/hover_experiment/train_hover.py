@@ -46,19 +46,16 @@ USE_TIMESTAMP_DIR = True  # Set to False to resume from existing directory
 RESUME_FROM_CHECKPOINT = True  # Set to True to resume from checkpoint
 
 # Dataset sizes
-TRAIN_SIZE = 100  # IMPORTANT: Must match the checkpoint! Do NOT change when resuming
-VAL_SIZE = 5   # Number of validation examples (or use len(valset) for full dataset)
+TRAIN_SIZE = 100  # Smaller training set to avoid overfitting
+VAL_SIZE = 30  # Smaller validation set
 
-# Optimization budget
-MAX_METRIC_CALLS = 20  # Increased budget to compensate for larger minibatch
-REFLECTION_MINIBATCH_SIZE = 3  # Balanced: better than 3, cheaper than 10
+MAX_METRIC_CALLS = 200  # Reduced budget to prevent over-optimization
+REFLECTION_MINIBATCH_SIZE = 5  # Smaller batches for gentler optimization
 
-# Models
-TASK_LM = "gpt-4o-mini"  # Model to optimize (cheaper/faster)
-REFLECTION_LM = "gpt-5"  # Model for reflection (should be stronger)
-
-# Rate limit handling
 LITELLM_MAX_WORKERS = 2  # Reduce parallel requests to avoid rate limits
+
+TASK_LM = "gpt-4.1-mini"  # LLM for task execution
+REFLECTION_LM = "gpt-5"  # LLM for reflection
 
 # Set seed for reproducibility
 random.seed(42)
@@ -112,17 +109,11 @@ def main():
     
     # 6. Define seed prompt (this is what GEPA will optimize)
     seed_prompt = {
-        "system_prompt": """You are a fact verification system. 
+        "system_prompt": """You will verify if a claim is supported by evidence.
 
-        You will be given a claim and context sentences from Wikipedia. Your task is to determine if the claim is SUPPORTED or NOT_SUPPORTED based on the provided context.
+Read the claim and evidence carefully. Answer SUPPORTED if the evidence fully supports the claim, or NOT_SUPPORTED if it doesn't.
 
-        Instructions:
-        - Carefully read the claim
-        - Review all context sentences
-        - Determine if the context provides sufficient evidence to support the claim
-        - Respond with either "SUPPORTED" or "NOT_SUPPORTED"
-
-        Format your response to clearly indicate your answer."""
+Output only: SUPPORTED or NOT_SUPPORTED"""
     }
     
     # 7. Set up adapter
@@ -150,7 +141,7 @@ def main():
         run_dir = f"./results/gepa_hover_results_{timestamp}"
         print(f"Creating new run directory: {run_dir}")
     else:
-        run_dir = "./results/gepa_hover_results"
+        run_dir = "./results/gepa_hover_results_20251108_005848"
         if RESUME_FROM_CHECKPOINT and os.path.exists(f"{run_dir}/gepa_state.bin"):
             print(f"Resuming from checkpoint in: {run_dir}")
         elif os.path.exists(f"{run_dir}/gepa_state.bin"):
@@ -211,7 +202,7 @@ def main():
     
     # 11. Save the optimized prompt
     output_file = f"{run_dir}/optimized_prompt.txt"
-    with open(output_file, "w") as f:
+    with open(output_file, "w", encoding='utf-8') as f:
         f.write(result.best_candidate['system_prompt'])
     print(f"\nOptimized prompt saved to: {output_file}")
     

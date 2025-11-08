@@ -84,7 +84,7 @@ class ReportGenerator:
     
     def save_report(self, report: Dict, seed_results: Dict, optimized_results: Dict):
         """
-        Save report and detailed results to files
+        Save report and detailed results to files with timestamps
         
         Args:
             report: Report dictionary
@@ -95,14 +95,17 @@ class ReportGenerator:
             Path to saved report file
         """
         
+        # Generate timestamp for unique filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
         # Save main report
-        report_file = self.output_dir / "test_evaluation_report.json"
+        report_file = self.output_dir / f"test_evaluation_report_{timestamp}.json"
         with open(report_file, 'w') as f:
             json.dump(report, f, indent=2)
         print(f"\n✓ Evaluation report saved to: {report_file}")
         
         # Save detailed results
-        detailed_file = self.output_dir / "test_detailed_results.json"
+        detailed_file = self.output_dir / f"test_detailed_results_{timestamp}.json"
         detailed_data = {
             "seed_prompt_results": seed_results["detailed_results"],
             "optimized_prompt_results": optimized_results["detailed_results"]

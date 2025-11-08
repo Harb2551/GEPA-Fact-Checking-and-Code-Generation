@@ -204,34 +204,27 @@ class HoVerAdapter(GEPAAdapter[HoVerDataInst, HoVerTrajectory, HoVerRolloutOutpu
             correct_label = data['answer']
             full_response = traj['full_response']
             
-            # Generate detailed feedback
-            if score > 0.0:
-                # Correct prediction
-                feedback = f"""✓ CORRECT: The model correctly predicted "{correct_label}".
+            # Simple, direct feedback
+            status = "CORRECT" if score > 0.0 else "INCORRECT"
+            
+            feedback = f"""{status}: Model predicted "{predicted_label}", correct answer is "{correct_label}".
 
-                The response properly analyzed the context and reached the right conclusion."""
-            else:
-                # Incorrect prediction
-                feedback = f"""✗ INCORRECT: The model predicted "{predicted_label}" but the correct answer is "{correct_label}".
+Input: {data['input']}
 
-Analysis:
-- The model may have misinterpreted the evidence in the context
-- The model may have missed key information that supports/refutes the claim
-- The model may need clearer instructions on how to evaluate evidence
+Response: {full_response}
 
-Consider:
-- Are there specific keywords or patterns that should trigger "{correct_label}"?
-- Does the context clearly support or contradict the claim?
-- Should the instructions emphasize certain reasoning steps?"""
+Notes:
+- Consider including few-shot examples if helpful
+- Keep prompt concise - the task model is ~8B parameters, avoid over-optimization
+- Focus on clarity over complexity"""
             
             # Create reflection example
             reflection_item = {
-                "Inputs": data['input'],
-                "Generated Outputs": {
-                    "Full Response": full_response,
-                    "Predicted Label": predicted_label
-                },
-                "Expected Answer": correct_label,
+                "Status": status,
+                "Input": data['input'],
+                "Model Response": full_response,
+                "Predicted": predicted_label,
+                "Correct Answer": correct_label,
                 "Feedback": feedback,
                 "Score": score
             }

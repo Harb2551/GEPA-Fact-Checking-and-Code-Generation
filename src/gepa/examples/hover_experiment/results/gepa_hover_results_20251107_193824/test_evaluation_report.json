@@ -1,7 +1,7 @@
 {
   "evaluation_info": {
-    "timestamp": "2025-11-07T19:43:20.794666",
-    "run_directory": "results/gepa_hover_results_20251107_193824",
+    "timestamp": "2025-11-08T01:29:38.187275",
+    "run_directory": "results\\gepa_hover_results_20251107_193824",
     "test_set_size": 10
   },
   "seed_prompt_performance": {
