@@ -54,7 +54,7 @@ REFLECTION_MINIBATCH_SIZE = 5  # Smaller batches for gentler optimization
 
 LITELLM_MAX_WORKERS = 2  # Reduce parallel requests to avoid rate limits
 
-TASK_LM = "gpt-4.1-mini"  # LLM for task execution
+TASK_LM = "ollama/qwen3:8b"  # LLM for task execution
 REFLECTION_LM = "gpt-5"  # LLM for reflection
 
 # Set seed for reproducibility
