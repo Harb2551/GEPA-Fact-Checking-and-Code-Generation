@@ -1,0 +1,49 @@
+Task: Verify whether a natural-language claim is fully supported by the provided evidence (context). Output only one of two labels: SUPPORTED or NOT_SUPPORTED.
+
+Input format:
+- Claim: <text>
+- Context: a numbered list of evidence sentences (one or more). You may synthesize across sentences, but only when the linkage is explicit in the context.
+
+Output format:
+- Output exactly one token: SUPPORTED or NOT_SUPPORTED (uppercase, no punctuation or extra text).
+
+Decision rule (strict entailment):
+- SUPPORTED: Every component of the claim is fully and explicitly supported by the context. All entities, relationships, attributes, dates/times, and qualifiers/modifiers in the claim must be directly evidenced.
+- NOT_SUPPORTED: If any part of the claim is missing from the context, is ambiguous, or is contradicted by the context, output NOT_SUPPORTED.
+
+How to evaluate:
+1) Break the claim into atomic facts (entities, relationships, roles, dates/times/locations, qualifiers like “morning,” “commonly,” “inspiration,” etc.).
+2) For each atomic fact, look for explicit support in the context. Do not assume or infer beyond what is stated.
+3) Resolve references carefully:
+   - Pronouns and referential phrases like “this film,” “the team he joined in 2006” must be resolvable from the context.
+   - Aliases are allowed when the context explicitly connects them (e.g., “Nicholas Scott ‘Nick’ Cannon” = “Nick Cannon”).
+4) Modifiers and qualifiers matter:
+   - Time-of-day, role labels, causal/inspirational relationships, and descriptors (e.g., “detective,” “morning,” “inspiration,” “request-stop”) must be present in the context to count as supported.
+   - If a claim contains any detail not mentioned in the context, choose NOT_SUPPORTED.
+5) Contradictions:
+   - If the context contradicts any part of the claim, choose NOT_SUPPORTED.
+6) Combining facts across sentences:
+   - You may combine facts when the linkage is explicit (e.g., “He joined West Ham United in 2006” + “The club relocated in 2016” → supports “the team he joined in 2006 moved in 2016”).
+   - Do not stitch together unrelated facts to create new inferences (e.g., connecting a railroad completion date to a different railroad’s locomotive usage without explicit linkage).
+
+Important interpretations based on prior pitfalls:
+- “Starred” vs “appeared”: For the purpose of this task, treat “starred” as being satisfied if the context confirms the person acted in the film at all, unless the context explicitly states that they were not in the film. Do not require explicit “lead” billing to satisfy “starred.”
+- Time precision: If a claim includes a more precise time (e.g., “born on the morning of October 8, 1980”) and the context only provides a date with no time-of-day, output NOT_SUPPORTED.
+- Role/occupation precision: Do not assume roles not stated (e.g., “detective”). If the context lists “businessman,” do not treat it as “detective.”
+- “Inspiration for” relationships must be explicitly stated in the context; otherwise, NOT_SUPPORTED.
+
+Domain-specific notes from previous items (use as reasoning patterns, not external knowledge):
+- King of the Dancehall (2016) was directed by Nick Cannon; Nick Cannon was born on October 8, 1980. If a claim adds “morning,” that detail is unsupported unless stated.
+- Savage Grace (2007) is about Barbara Daly Baekeland and her son Antony; Eddie Redmayne appeared in Savage Grace. Treat “starred” as supported if his appearance is confirmed.
+- Clinchfield Railroad commonly used Challenger locomotives; a 35-mile segment connecting to the C&O at Elkhorn City was completed in 1915; Yancey Railroad connected to Clinchfield at Kona, NC. Do not infer that a “request-stop railroad” used Challengers or was completed in 1915 unless explicitly stated.
+- Jonathan Spector joined West Ham United in 2006; West Ham relocated to London Stadium in 2016 → supports the claim that “the team he joined in 2006 moved in 2016.”
+- Moe Dalitz was an American gangster, businessman, casino owner, and philanthropist (not a detective). The context did not state he inspired Moe Greene; without explicit mention, mark such claims as NOT_SUPPORTED.
+
+Quick checklist before answering:
+- Are all named entities matched and explicitly linked?
+- Are all dates/times/locations/roles present?
+- Are all qualifiers (e.g., “morning,” “commonly,” “inspiration,” “request-stop”) explicitly supported?
+- Is there any contradiction?
+- If any element is missing or uncertain, answer NOT_SUPPORTED.
+
+Remember: Use only the provided context. Do not add external knowledge or assumptions. Output only SUPPORTED or NOT_SUPPORTED.

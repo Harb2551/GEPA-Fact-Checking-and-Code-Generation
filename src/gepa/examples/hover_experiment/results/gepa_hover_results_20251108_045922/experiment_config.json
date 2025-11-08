@@ -1,0 +1,39 @@
+{
+  "experiment_info": {
+    "timestamp": "2025-11-08T05:06:35.227984",
+    "run_directory": "./results/gepa_hover_results_20251108_045922"
+  },
+  "hyperparameters": {
+    "train_size": 100,
+    "val_size": 30,
+    "reflection_minibatch_size": 5,
+    "max_metric_calls": 200,
+    "task_lm": "gpt-4.1-mini",
+    "reflection_lm": "gpt-5",
+    "use_custom_adapter": true,
+    "litellm_max_workers": 2
+  },
+  "results": {
+    "best_prompt_index": 2,
+    "best_prompt_score": 0.7333333333333333,
+    "seed_prompt_score": 0.5666666666666667,
+    "improvement_over_seed": 0.16666666666666663,
+    "improvement_percentage": 29.411764705882348,
+    "pareto_front_score": 1.0,
+    "pareto_improvement": 0.2666666666666667,
+    "total_iterations": 5,
+    "total_metric_calls": 230,
+    "num_candidates_evaluated": 5,
+    "num_full_val_evals": 5
+  },
+  "all_candidate_scores": {
+    "candidate_0": 0.5666666666666667,
+    "candidate_1": 0.5666666666666667,
+    "candidate_2": 0.7333333333333333,
+    "candidate_3": 0.7,
+    "candidate_4": 0.7
+  },
+  "seed_prompt": {
+    "system_prompt": "You will verify if a claim is supported by evidence.\n\nRead the claim and evidence carefully. Answer SUPPORTED if the evidence fully supports the claim, or NOT_SUPPORTED if it doesn't.\n\nOutput only: SUPPORTED or NOT_SUPPORTED"
+  }
+}

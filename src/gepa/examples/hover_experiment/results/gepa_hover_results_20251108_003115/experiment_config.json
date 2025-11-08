@@ -1,0 +1,37 @@
+{
+  "experiment_info": {
+    "timestamp": "2025-11-08T00:33:24.764052",
+    "run_directory": "./results/gepa_hover_results_20251108_003115"
+  },
+  "hyperparameters": {
+    "train_size": 100,
+    "val_size": 5,
+    "reflection_minibatch_size": 3,
+    "max_metric_calls": 20,
+    "task_lm": "gpt-4o-mini",
+    "reflection_lm": "gpt-5",
+    "use_custom_adapter": true,
+    "litellm_max_workers": 2
+  },
+  "results": {
+    "best_prompt_index": 0,
+    "best_prompt_score": 0.8,
+    "seed_prompt_score": 0.8,
+    "improvement_over_seed": 0.0,
+    "improvement_percentage": 0.0,
+    "pareto_front_score": 1.0,
+    "pareto_improvement": 0.19999999999999996,
+    "total_iterations": 3,
+    "total_metric_calls": 27,
+    "num_candidates_evaluated": 3,
+    "num_full_val_evals": 3
+  },
+  "all_candidate_scores": {
+    "candidate_0": 0.8,
+    "candidate_1": 0.6,
+    "candidate_2": 0.8
+  },
+  "seed_prompt": {
+    "system_prompt": "You are a fact verification system. \n\n        You will be given a claim and context sentences from Wikipedia. Your task is to determine if the claim is SUPPORTED or NOT_SUPPORTED based on the provided context.\n\n        Instructions:\n        - Carefully read the claim\n        - Review all context sentences\n        - Determine if the context provides sufficient evidence to support the claim\n        - Respond with either \"SUPPORTED\" or \"NOT_SUPPORTED\"\n\n        Format your response to clearly indicate your answer."
+  }
+}
