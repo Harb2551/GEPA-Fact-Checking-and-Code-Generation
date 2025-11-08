@@ -8,6 +8,13 @@ This adapter provides custom evaluation and reflection for the HoVer fact verifi
 from typing import Any, Callable, TypedDict
 from gepa.core.adapter import EvaluationBatch, GEPAAdapter
 
+# Optional import of the local HF helper. If not available, hf/ model routing
+# will raise an informative error when used.
+try:
+    from gepa.utils.hf_local import get_local_hf_model
+except Exception:  # pragma: no cover - optional runtime dependency
+    get_local_hf_model = None
+
 
 # Define data types
 class HoVerDataInst(TypedDict):
@@ -114,21 +121,49 @@ class HoVerAdapter(GEPAAdapter[HoVerDataInst, HoVerTrajectory, HoVerRolloutOutpu
         # Get LLM responses
         try:
             if isinstance(self.model, str):
-                raw_responses = self.litellm.batch_completion(
-                    model=self.model,
-                    messages=litellm_requests,
-                    max_workers=self.max_litellm_workers,
-                    **self.litellm_batch_completion_kwargs
-                )
-                # Extract content, handling errors
-                responses = []
-                for resp in raw_responses:
-                    if hasattr(resp, 'choices') and len(resp.choices) > 0:
-                        responses.append(resp.choices[0].message.content.strip())
-                    else:
-                        # Error response (like RateLimitError)
-                        print(f"Warning: LLM call failed with: {resp}")
-                        responses.append("")  # Empty response will get low score
+                # Support routing to a local Hugging Face model using the
+                # `hf/<model_id>` prefix. Example: TASK_LM="hf/gpt2" or
+                # "hf/your-org/your-model". This will use the HFLocalModel
+                # helper to download (if needed) and run generation locally.
+                if self.model.startswith("hf/"):
+                    if get_local_hf_model is None:
+                        raise ImportError(
+                            "Local HF helper not available. Install gepa.utils.hf_local or ensure it is in PYTHONPATH."
+                        )
+
+                    model_id = self.model.split("/", 1)[1]
+                    local_model = get_local_hf_model(model_id)
+
+                    responses = []
+                    # convert the message list to a single prompt string per example
+                    for messages in litellm_requests:
+                        # messages expected to be [{'role': 'system', 'content': ...}, {'role': 'user', 'content': ...}]
+                        parts = []
+                        for m in messages:
+                            parts.append(f"[{m.get('role', '')}] {m.get('content','')}")
+                        prompt = "\n\n".join(parts)
+                        try:
+                            out = local_model.generate(prompt)
+                        except Exception as e:
+                            print(f"Warning: local HF generation failed: {e}")
+                            out = ""
+                        responses.append(out)
+                else:
+                    raw_responses = self.litellm.batch_completion(
+                        model=self.model,
+                        messages=litellm_requests,
+                        max_workers=self.max_litellm_workers,
+                        **self.litellm_batch_completion_kwargs
+                    )
+                    # Extract content, handling errors
+                    responses = []
+                    for resp in raw_responses:
+                        if hasattr(resp, 'choices') and len(resp.choices) > 0:
+                            responses.append(resp.choices[0].message.content.strip())
+                        else:
+                            # Error response (like RateLimitError)
+                            print(f"Warning: LLM call failed with: {resp}")
+                            responses.append("")  # Empty response will get low score
             else:
                 responses = [self.model(messages) for messages in litellm_requests]
         except Exception as e:

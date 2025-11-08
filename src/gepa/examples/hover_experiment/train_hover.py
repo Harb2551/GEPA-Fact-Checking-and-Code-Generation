@@ -9,9 +9,21 @@ Usage:
 """
 
 from datasets import load_dataset
-import gepa
 import os
 import random
+import sys
+from pathlib import Path as _PathForSys
+
+# When running this example directly (python train_hover.py) ensure the
+# project's `src/` directory is on sys.path so `import gepa` and
+# `from gepa.utils.hf_local import ...` work even when this script's CWD is
+# the examples folder. This mirrors running the code as an installed package.
+_HERE = _PathForSys(__file__).resolve()
+_SRC_DIR = _HERE.parents[3]  # ../../.. -> project `src` directory
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
+import gepa
 from hover_adapter import HoVerAdapter
 from dotenv import load_dotenv
 from pathlib import Path
@@ -54,7 +66,7 @@ REFLECTION_MINIBATCH_SIZE = 5  # Smaller batches for gentler optimization
 
 LITELLM_MAX_WORKERS = 2  # Reduce parallel requests to avoid rate limits
 
-TASK_LM = "ollama/qwen3:8b"  # LLM for task execution
+TASK_LM = "hf/Qwen/Qwen3-8B"  # LLM for task execution
 REFLECTION_LM = "gpt-5"  # LLM for reflection
 
 # Set seed for reproducibility
