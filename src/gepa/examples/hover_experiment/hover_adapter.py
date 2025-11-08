@@ -6,6 +6,7 @@ This adapter provides custom evaluation and reflection for the HoVer fact verifi
 """
 
 from typing import Any, Callable, TypedDict
+from typing import Optional
 from gepa.core.adapter import EvaluationBatch, GEPAAdapter
 
 import sys
@@ -29,18 +30,189 @@ def _ensure_local_src_on_path(start: _PathForSys, max_up: int = 8) -> None:
         cur = cur.parent
 
 
-_HERE = _PathForSys(__file__).resolve()
-_ensure_local_src_on_path(_HERE.parent)
+# Inlined HFLocalModel: a lazy-loading, minimal helper to run a HF causal LM
+# locally using `transformers`. Imports heavy ML libraries only inside
+# methods to avoid import-time failures on systems without torch/cuda.
+class HFLocalModel:
+    """Lightweight local HF causal LM helper (lazy imports).
 
-# Optional import of the local HF helper. Prefer a module-local copy in the
-# examples folder (so this example runs even if package layout or PYTHONPATH
-# differs). Fall back to the package helper if present.
-try:
-    print("trying to import")
-    from hf_local import get_local_hf_model
-except Exception:  # pragma: no cover - optional runtime dependency
-        print("could not import hf_local")
-        get_local_hf_model = None
+    This loads `transformers` and `torch` only when needed (in `load()`).
+    """
+
+    def __init__(
+        self,
+        model_name: str,
+        cache_dir: Optional[str] = None,
+        device: Optional[str] = None,
+        use_fast_tokenizer: bool = True,
+        trust_remote_code: bool = False,
+    ) -> None:
+        self.model_name = model_name
+        self.cache_dir = cache_dir
+        self.use_fast_tokenizer = use_fast_tokenizer
+        self.trust_remote_code = trust_remote_code
+
+        self._transformers = None
+        self._torch = None
+        self.AutoTokenizer = None
+        self.AutoModelForCausalLM = None
+
+        self.device = device or "cpu"
+
+        self.tokenizer: Optional[object] = None
+        self.model: Optional[object] = None
+
+    def _from_pretrained_kwargs(self) -> dict:
+        kwargs = {}
+        if self.cache_dir:
+            kwargs["cache_dir"] = self.cache_dir
+        return kwargs
+
+    def _ensure_transformers_loaded(self):
+        if self._transformers is not None:
+            return
+        try:
+            import transformers as _transformers
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except Exception as e:
+            raise ImportError("HFLocalModel requires the 'transformers' package: %s" % e)
+        try:
+            import torch as _torch
+        except Exception:
+            _torch = None
+
+        self._transformers = _transformers
+        self._torch = _torch
+        self.AutoTokenizer = AutoTokenizer
+        self.AutoModelForCausalLM = AutoModelForCausalLM
+
+        if self.device == "cpu" and self._torch is not None:
+            try:
+                if self._torch.cuda.is_available():
+                    self.device = "cuda"
+            except Exception:
+                self.device = "cpu"
+
+    def is_downloaded(self) -> bool:
+        self._ensure_transformers_loaded()
+        try:
+            self.AutoTokenizer.from_pretrained(
+                self.model_name, local_files_only=True, use_fast=self.use_fast_tokenizer
+            )
+            self.AutoModelForCausalLM.from_pretrained(self.model_name, local_files_only=True)
+            return True
+        except Exception:
+            return False
+
+    def download_if_needed(self) -> None:
+        if self.is_downloaded():
+            return
+        self.load()
+
+    def load(self) -> None:
+        if self.tokenizer is not None and self.model is not None:
+            return
+
+        self._ensure_transformers_loaded()
+        kwargs = self._from_pretrained_kwargs()
+
+        self.tokenizer = self.AutoTokenizer.from_pretrained(
+            self.model_name, use_fast=self.use_fast_tokenizer, **kwargs
+        )
+
+        model_kwargs = dict(kwargs)
+        try:
+            self.model = self.AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                trust_remote_code=self.trust_remote_code,
+                low_cpu_mem_usage=True,
+                **model_kwargs,
+            )
+        except TypeError:
+            self.model = self.AutoModelForCausalLM.from_pretrained(
+                self.model_name, trust_remote_code=self.trust_remote_code, **model_kwargs
+            )
+
+        if self._torch is not None and str(self.device).startswith("cuda"):
+            try:
+                self.model.to(self.device)
+            except Exception:
+                self.device = "cpu"
+        else:
+            try:
+                self.model.to("cpu")
+            except Exception:
+                pass
+
+        try:
+            self.model.eval()
+        except Exception:
+            pass
+
+    def generate(
+        self,
+        prompt: str,
+        max_new_tokens: int = 128,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        do_sample: bool = True,
+        stop_tokens: Optional[list[str]] = None,
+    ) -> str:
+        if self.tokenizer is None or self.model is None:
+            self.load()
+
+        _torch = self._torch
+
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+
+        if _torch is not None and str(self.device).startswith("cuda"):
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+        gen_kwargs = dict(
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=do_sample,
+            top_p=top_p,
+            pad_token_id=(self.tokenizer.eos_token_id or getattr(self.tokenizer, "pad_token_id", None)),
+        )
+
+        ctx = _torch.no_grad() if _torch is not None else _nullcontext()
+        with ctx:
+            outputs = self.model.generate(**inputs, **gen_kwargs)
+
+        output_ids = outputs[0]
+        input_len = inputs["input_ids"].shape[1]
+        if output_ids.shape[0] == 0:
+            return ""
+
+        generated_ids = output_ids[input_len:]
+        text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        if stop_tokens:
+            for t in stop_tokens:
+                idx = text.find(t)
+                if idx != -1:
+                    text = text[:idx]
+                    break
+
+        return text.strip()
+
+
+class _NullContext:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def _nullcontext():
+    return _NullContext()
+
+
+def get_local_hf_model(model_name: str, cache_dir: Optional[str] = None, **kwargs) -> HFLocalModel:
+    return HFLocalModel(model_name=model_name, cache_dir=cache_dir, **kwargs)
+
 
 
 # Define data types
@@ -153,13 +325,12 @@ class HoVerAdapter(GEPAAdapter[HoVerDataInst, HoVerTrajectory, HoVerRolloutOutpu
                 # "hf/your-org/your-model". This will use the HFLocalModel
                 # helper to download (if needed) and run generation locally.
                 if self.model.startswith("hf/"):
-                    if get_local_hf_model is None:
-                        raise ImportError(
-                            "Local HF helper not available. Install gepa.utils.hf_local or ensure it is in PYTHONPATH."
-                        )
-
+                    # Directly use the in-file HFLocalModel class to avoid any
+                    # external-import indirection. The HFLocalModel performs
+                    # lazy imports of heavy ML libs so importing this module
+                    # still works on systems without torch/transformers.
                     model_id = self.model.split("/", 1)[1]
-                    local_model = get_local_hf_model(model_id)
+                    local_model = HFLocalModel(model_id)
 
                     responses = []
                     # convert the message list to a single prompt string per example
