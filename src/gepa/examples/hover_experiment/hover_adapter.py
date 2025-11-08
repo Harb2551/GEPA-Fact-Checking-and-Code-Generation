@@ -36,11 +36,8 @@ _ensure_local_src_on_path(_HERE.parent)
 # examples folder (so this example runs even if package layout or PYTHONPATH
 # differs). Fall back to the package helper if present.
 try:
-    from .hf_local import get_local_hf_model
-except Exception:
-    try:
-        from gepa.utils.hf_local import get_local_hf_model
-    except Exception:  # pragma: no cover - optional runtime dependency
+    from hf_local import get_local_hf_model
+except Exception:  # pragma: no cover - optional runtime dependency
         get_local_hf_model = None
 
 
