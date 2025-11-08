@@ -109,11 +109,7 @@ def main():
     
     # 6. Define seed prompt (this is what GEPA will optimize)
     seed_prompt = {
-        "system_prompt": """You will verify if a claim is supported by evidence.
-
-Read the claim and evidence carefully. Answer SUPPORTED if the evidence fully supports the claim, or NOT_SUPPORTED if it doesn't.
-
-Output only: SUPPORTED or NOT_SUPPORTED"""
+        "system_prompt": """Given a claim and an evidence Answer SUPPORTED or NOT_SUPPORTED."""
     }
     
     # 7. Set up adapter
