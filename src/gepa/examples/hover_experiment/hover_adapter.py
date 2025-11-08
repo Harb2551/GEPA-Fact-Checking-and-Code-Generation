@@ -36,8 +36,10 @@ _ensure_local_src_on_path(_HERE.parent)
 # examples folder (so this example runs even if package layout or PYTHONPATH
 # differs). Fall back to the package helper if present.
 try:
+    print("trying to import")
     from hf_local import get_local_hf_model
 except Exception:  # pragma: no cover - optional runtime dependency
+        print("could not import hf_local")
         get_local_hf_model = None
 
 
