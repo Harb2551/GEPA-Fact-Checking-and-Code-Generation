@@ -32,12 +32,16 @@ def _ensure_local_src_on_path(start: _PathForSys, max_up: int = 8) -> None:
 _HERE = _PathForSys(__file__).resolve()
 _ensure_local_src_on_path(_HERE.parent)
 
-# Optional import of the local HF helper. If not available, hf/ model routing
-# will raise an informative error when used.
+# Optional import of the local HF helper. Prefer a module-local copy in the
+# examples folder (so this example runs even if package layout or PYTHONPATH
+# differs). Fall back to the package helper if present.
 try:
-    from gepa.utils.hf_local import get_local_hf_model
-except Exception:  # pragma: no cover - optional runtime dependency
-    get_local_hf_model = None
+    from .hf_local import get_local_hf_model
+except Exception:
+    try:
+        from gepa.utils.hf_local import get_local_hf_model
+    except Exception:  # pragma: no cover - optional runtime dependency
+        get_local_hf_model = None
 
 
 # Define data types
