@@ -54,7 +54,7 @@ MAX_METRIC_CALLS = 20  # Increased budget to compensate for larger minibatch
 REFLECTION_MINIBATCH_SIZE = 3  # Balanced: better than 3, cheaper than 10
 
 # Models
-TASK_LM = "gpt-4o-mini"  # Model to optimize (cheaper/faster)
+TASK_LM = "ollama/qwen3:8b"  # Model to optimize (cheaper/faster)
 REFLECTION_LM = "gpt-5"  # Model for reflection (should be stronger)
 
 # Rate limit handling
