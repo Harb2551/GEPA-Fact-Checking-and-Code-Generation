@@ -1,0 +1,42 @@
+{
+  "experiment_info": {
+    "timestamp": "2025-11-07T09:07:07.718246",
+    "run_directory": "./results/gepa_hover_results_20251107_055246"
+  },
+  "hyperparameters": {
+    "train_size": 100,
+    "val_size": 30,
+    "reflection_minibatch_size": 7,
+    "max_metric_calls": 500,
+    "task_lm": "gpt-4o-mini",
+    "reflection_lm": "gpt-5",
+    "use_custom_adapter": true,
+    "litellm_max_workers": 2
+  },
+  "results": {
+    "best_prompt_index": 0,
+    "best_prompt_score": 0.36666666666666664,
+    "seed_prompt_score": 0.36666666666666664,
+    "improvement_over_seed": 0.0,
+    "improvement_percentage": 0.0,
+    "pareto_front_score": 1.0,
+    "pareto_improvement": 0.6333333333333333,
+    "total_iterations": 11,
+    "total_metric_calls": 512,
+    "num_candidates_evaluated": 11,
+    "num_full_val_evals": 11
+  },
+  "all_candidate_scores": {
+    "candidate_0": 0.36666666666666664,
+    "candidate_1": 0.26666666666666666,
+    "candidate_2": 0.26666666666666666,
+    "candidate_3": 0.26666666666666666,
+    "candidate_4": 0.3,
+    "candidate_5": 0.3,
+    "candidate_6": 0.23333333333333334,
+    "candidate_7": 0.3,
+    "candidate_8": 0.26666666666666666,
+    "candidate_9": 0.3,
+    "candidate_10": 0.3333333333333333
+  }
+}
