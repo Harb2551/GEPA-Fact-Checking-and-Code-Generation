@@ -8,6 +8,30 @@ This adapter provides custom evaluation and reflection for the HoVer fact verifi
 from typing import Any, Callable, TypedDict
 from gepa.core.adapter import EvaluationBatch, GEPAAdapter
 
+import sys
+from pathlib import Path as _PathForSys
+
+
+# Try to ensure the project's local `src/` directory is on sys.path so
+# `from gepa.utils.hf_local import ...` can find the helper when this
+# module is executed directly (e.g., on HPC or after cloning into arbitrary paths).
+def _ensure_local_src_on_path(start: _PathForSys, max_up: int = 8) -> None:
+    cur = start
+    for _ in range(max_up):
+        candidate = cur / "src"
+        if candidate.exists() and (candidate / "gepa").exists():
+            p = str(candidate)
+            if p not in sys.path:
+                sys.path.insert(0, p)
+            # Debug-friendly message when running on remote machines
+            print(f"[gepa] added to sys.path: {p}")
+            return
+        cur = cur.parent
+
+
+_HERE = _PathForSys(__file__).resolve()
+_ensure_local_src_on_path(_HERE.parent)
+
 # Optional import of the local HF helper. If not available, hf/ model routing
 # will raise an informative error when used.
 try:
