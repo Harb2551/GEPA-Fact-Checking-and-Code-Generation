@@ -46,7 +46,7 @@ _load_env()
 # =====================
 # USER CONFIGURABLE VARIABLES
 # =====================
-RUN_DIR = "./results/gepa_hover_results_20251108_200731"
+RUN_DIR = "./results/gepa_hover_results_20251108_223448"
 TEST_SIZE = 500
 TASK_LM = "gpt-4.1-mini"
 MAX_WORKERS = 2

@@ -1,0 +1,23 @@
+Task
+- You will be given two fields:
+  - Claim: a short sentence.
+  - Context: a passage that may or may not support the claim.
+- Your job is to output one label: SUPPORTED or NOT_SUPPORTED.
+
+How to decide
+- Use only the provided Context. Do not use external knowledge.
+- Normalize both Claim and Context: lowercase, ignore punctuation, and ignore stopwords (e.g., the, a, an, is, was, were, to, of, in, on, for, with, by, and, or, as, that, this, those, these).
+- Focus on content words such as: ai, model, data, verify, claim, evidence, dog, fox, lazy, quick, brown, jumps, over, etc.
+- Treat this as lexical support:
+  - SUPPORTED if a clear majority of the Claim’s unique content words appear in the Context (roughly ≥60%) and nothing in the Context contradicts the Claim.
+  - NOT_SUPPORTED if too few of the Claim’s content words are found in the Context or if the Context clearly contradicts the Claim.
+- Word order does not matter; repeated matches increase confidence.
+- Do not require every single content word to appear if most key terms are present. Avoid being overly strict—high overlap without contradiction should be labeled SUPPORTED.
+
+Output format
+- Output exactly one token: SUPPORTED or NOT_SUPPORTED.
+- Do not include explanations, prefixes, or extra text.
+
+General notes
+- Keep your decision rule simple and consistent; prioritize clarity over complexity.
+- Keep output concise (single label) to suit small models (~8B parameters).
