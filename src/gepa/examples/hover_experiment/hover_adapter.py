@@ -447,7 +447,6 @@ Input: {data['input']}
 Response: {full_response}
 
 Notes:
-- Consider including few-shot examples if helpful
 - Keep prompt concise - the task model is ~8B parameters, avoid over-optimization
 - Focus on clarity over complexity"""
             
