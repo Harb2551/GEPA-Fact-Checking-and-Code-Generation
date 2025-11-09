@@ -11,6 +11,7 @@ Usage:
 
 import os
 import json
+import csv
 import random
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
@@ -27,6 +28,12 @@ from evaluation import (
     PromptEvaluator,
     ReportGenerator
 )
+
+# Reusable few-shot generator (used to build few-shot CSVs for evaluation if desired)
+try:
+    from generate_fewshot_dataset import FewShotGenerator
+except Exception:
+    FewShotGenerator = None
 
 # Load environment variables
 # Portable .env loading (search upward for .env)
@@ -56,6 +63,15 @@ TASK_LM = "gpt-4.1-mini"
 MAX_WORKERS = 2
 BATCH_SIZE = 50
 # =====================
+
+# Few-shot evaluation config
+# When True, the evaluator will ensure a per-test few-shot CSV exists
+# (named by FEWSHOT_TEST_FILE). If the file is missing it will be generated
+# from the test examples using FewShotGenerator and written into the
+# few-shot run directory when available or into CWD otherwise.
+USE_FEWSHOT_FOR_EVAL = True
+FEWSHOT_TEST_FILE = "hover_fewshot_test.csv"
+FEWSHOT_K = 3
 
 
 # ============================================================================
@@ -112,7 +128,64 @@ class TestEvaluationOrchestrator:
         adapter = HoVerAdapter(model=self.task_lm, max_litellm_workers=self.max_workers)
         evaluator = PromptEvaluator(adapter, self.checkpoint_manager)
         
-        # Step 4: Evaluate seed prompt
+        # If configured, build or load a per-test few-shot CSV and attach
+        # few-shot examples to each test example (in-place). The user wants
+        # few-shots injected into all prompt evaluations when the flag is True.
+        mapping = {}
+        fewshot_csv_path = None
+        if USE_FEWSHOT_FOR_EVAL:
+            try:
+                candidates = [Path.cwd() / FEWSHOT_TEST_FILE, self.run_dir / FEWSHOT_TEST_FILE]
+                target_path = None
+                for c in candidates:
+                    if c.exists():
+                        target_path = c
+                        break
+
+                if target_path is None:
+                    preferred_dir = Path.cwd()
+                    preferred_dir.mkdir(parents=True, exist_ok=True)
+                    target_path = preferred_dir / FEWSHOT_TEST_FILE
+                    if FewShotGenerator is None:
+                        print("Warning: FewShotGenerator not available; cannot generate per-test few-shot CSV.")
+                        target_path = None
+                    else:
+                        print(f"Few-shot test CSV not found in CWD or run_dir; generating {target_path} using FewShotGenerator")
+                        simple_rows = []
+                        for ex in test_examples:
+                            simple_rows.append({
+                                "input": ex.get("input"),
+                                "answer": ex.get("answer"),
+                                "additional_context": ex.get("additional_context", {}),
+                            })
+                        gen = FewShotGenerator()
+                        gen.generate_for_examples(simple_rows, out_file=str(target_path), max_rows=len(simple_rows))
+
+                if target_path is not None and target_path.exists():
+                    fewshot_csv_path = str(target_path)
+                    with open(target_path, newline='', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        for r in reader:
+                            inp = r.get('input')
+                            fs = r.get('few_shot')
+                            try:
+                                parsed = json.loads(fs) if fs else None
+                            except Exception:
+                                parsed = fs
+                            mapping[inp] = parsed
+
+                    # Attach parsed few-shot examples to matching test_examples (in-place)
+                    attached = 0
+                    for ex in test_examples:
+                        key = ex.get('input')
+                        if key in mapping:
+                            ex['few_shot'] = mapping[key]
+                            attached += 1
+                    print(f"✓ Attached few-shot examples from {target_path} to {attached}/{len(test_examples)} test examples")
+            except Exception as e:
+                print(f"Warning: failed to generate/load few-shot test CSV: {e}")
+
+        # Step 4: Evaluate seed prompt (few-shots will be present if flag True)
         print("\n" + "="*70)
         print("EVALUATING SEED PROMPT")
         print("="*70)
@@ -121,6 +194,8 @@ class TestEvaluationOrchestrator:
         )
         print(f"✓ Seed Prompt Accuracy: {seed_results['accuracy']:.2%}")
         
+        
+
         # Step 5: Evaluate optimized prompt
         print("\n" + "="*70)
         print("EVALUATING OPTIMIZED PROMPT")
@@ -131,7 +206,9 @@ class TestEvaluationOrchestrator:
         print(f"✓ Optimized Prompt Accuracy: {optimized_results['accuracy']:.2%}")
 
         # Optional: if a separate few-shot run dir is provided, evaluate its
-        # optimized prompt on the same test set for direct comparison.
+        # optimized prompt on the same test set for direct comparison. The
+        # test_examples may already contain per-example `few_shot` entries if
+        # `USE_FEWSHOT_FOR_EVAL` was True above.
         if self.fewshot_run_dir is not None and self.fewshot_run_dir.exists():
             try:
                 print("\n" + "="*70)
@@ -227,6 +304,11 @@ class TestEvaluationOrchestrator:
             comparison = {
                 "timestamp": ts,
                 "test_size": len(test_examples),
+                "few_shot": {
+                    "injected": bool(USE_FEWSHOT_FOR_EVAL),
+                    "file": fewshot_csv_path,
+                    "k": FEWSHOT_K,
+                },
                 "baseline": {
                     "accuracy": seed_results.get("accuracy"),
                     "correct": seed_results.get("correct"),
@@ -293,11 +375,6 @@ class TestEvaluationOrchestrator:
         # Use validation split as test set (or test split if available)
         if 'test' in ds:
             test_data = ds['test']
-        elif 'validation' in ds:
-            test_data = ds['validation']
-        else:
-            full_data = ds['train']
-            test_data = full_data.select(range(len(full_data) - self.test_size, len(full_data)))
         
         print(f"Available test examples: {len(test_data)}")
         

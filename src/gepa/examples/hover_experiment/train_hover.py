@@ -126,9 +126,12 @@ def main():
         if not os.path.exists(FEWSHOT_FILE):
             print(f"Few-shot file '{FEWSHOT_FILE}' not found — generating it now...")
             try:
-                # Import the generator module and run its main() to produce the CSV
-                import generate_fewshot_dataset as _gfs
-                _gfs.main()
+                # Use the reusable FewShotGenerator class
+                from generate_fewshot_dataset import FewShotGenerator
+
+                gen = FewShotGenerator(model_name=os.getenv("FEWSHOT_MODEL", None), sleep=1.0)
+                # Generate few-shot examples based on the canonical all_examples list
+                gen.generate_for_examples(all_examples, out_file=FEWSHOT_FILE, max_rows=TRAIN_SIZE)
             except Exception as e:
                 print(f"Failed to generate few-shot dataset: {e}")
                 raise

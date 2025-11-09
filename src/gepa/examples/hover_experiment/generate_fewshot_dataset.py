@@ -1,23 +1,17 @@
-"""Generate a synthetic HoVer-style dataset and augment it with few-shot examples
-obtained from a language model (default: 'gpt-5').
+"""Few-shot generator utility
 
-Behavior:
-- Generates N random rows (default 100) with fields: input, answer, additional_context
-- For each row, calls an LLM to request 3-shot examples (as a JSON array or newline-separated)
-  and stores the returned few-shot examples in the 'few_shot' column.
-- Writes the result to CSV (default: hover_fewshot.csv) which `train_hover.py` can use
-  when a few-shot variable is enabled.
+Provides a `FewShotGenerator` class that can generate few-shot examples for
+any supplied list of examples (train, validation, test). It keeps the same
+parsing and CSV output format as the previous script but is reusable from
+`train_hover.py` and `evaluate_test_set.py`.
 
-Usage:
-  export OPENAI_API_KEY="sk-..."   # or ensure litellm is configured
-  export FEWSHOT_MODEL="gpt-5"      # optional, default 'gpt-5'
-  python generate_fewshot_dataset.py --rows 100 --out hover_fewshot.csv
+Usage example:
+        from generate_fewshot_dataset import FewShotGenerator
+        gen = FewShotGenerator(model_name=os.getenv('FEWSHOT_MODEL', 'gpt-5'))
+        gen.generate_for_examples(my_examples, out_file='hover_fewshot.csv', max_rows=100)
 
-Notes:
-- This script will attempt to use `litellm.completion` if `litellm` is installed.
-  If not, it will try the OpenAI Python package. If neither is available, it will
-  raise an instructive error.
-- Calls are rate-limited by a short sleep; adjust `SLEEP_BETWEEN` if needed.
+The generator will try `litellm` first and fall back to the OpenAI
+Python client if available.
 """
 
 from __future__ import annotations
@@ -62,140 +56,147 @@ def generate_rows(n: int) -> List[Dict[str, Any]]:
 
 # Model caller abstraction: try litellm.completion, otherwise OpenAI chat completion
 
-def call_model_for_fewshot(prompt: str, model_name: str, timeout=60) -> str:
-    """Return the model's raw text response for the given prompt and model_name.
+class FewShotGenerator:
+    """Generate few-shot examples for a list of examples.
 
-    Attempts to use litellm.completion(model=..., messages=...), falling back to
-    openai.ChatCompletion if litellm is unavailable.
+    Methods:
+        - generate_for_examples(examples, out_file, max_rows)
     """
-    # Try litellm first
-    try:
-        import litellm
 
-        # Build messages as litellm expects
-        messages = [{"role": "user", "content": prompt}]
-        resp = litellm.completion(model=model_name, messages=messages)
-        # litellm completion returns an object; try to extract content
-        if hasattr(resp, "choices") and len(resp.choices) > 0:
-            try:
-                return resp.choices[0].message.content
-            except Exception:
-                return str(resp)
-        return str(resp)
-    except Exception:
-        pass
+    def __init__(self, model_name: str | None = None, sleep: float = 1.0):
+        self.model_name = model_name or os.getenv("FEWSHOT_MODEL", "gpt-5")
+        self.sleep = sleep
 
-    # Fallback: try openai package
-    try:
-        import openai
+    def _call_model(self, prompt: str, model_name: str | None = None) -> str:
+        model_name = model_name or self.model_name
+        # Try litellm first
+        try:
+            import litellm
 
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            openai.api_key = api_key
-        # Use chat completions for modern models
-        resp = openai.ChatCompletion.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=512,
-        )
-        # extract text
-        choices = resp.get("choices", [])
-        if choices:
-            return choices[0].get("message", {}).get("content", "")
-        return json.dumps(resp)
-    except Exception as e:
-        raise RuntimeError(
-            "No supported LLM client found (litellm or openai). Install one and set appropriate env vars/API keys. "
-            f"Underlying error: {e}"
-        )
-
-
-def build_prompt_for_row(row: Dict[str, Any]) -> str:
-    """Create a prompt asking the model to produce 3-shot examples for the input.
-
-    The prompt requests 3 short example inputs and labels in JSON array form so
-    we can store them cleanly.
-    """
-    # Build the prompt in parts to avoid interpreting JSON braces as f-string
-    header = (
-        "You are given a claim verification example. Produce exactly 3 few-shot examples (short) "
-        "that are formatted as JSON array of objects with keys: 'input' and 'label' where label is either 'SUPPORTED' or 'NOT_SUPPORTED'.\n\n"
-    )
-
-    original = "Original example:\n" + row["input"] + "\n\n"
-
-    example_json = (
-        "Return only a JSON array, e.g.:\n"
-        "[\n"
-        "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"SUPPORTED\"},\n"
-        "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"NOT_SUPPORTED\"},\n"
-        "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"SUPPORTED\"}\n"
-        "]\n\n"
-    )
-
-    footer = "Keep each example short (one or two sentences per 'input').\n"
-
-    prompt = header + original + example_json + footer
-    return prompt
-
-
-# Configuration variables (edit these directly)
-ROWS = 100
-OUT = "hover_fewshot.csv"
-MODEL = os.getenv("FEWSHOT_MODEL", "gpt-5")
-SLEEP = 1.0
-
-
-def main() -> None:
-    rows = generate_rows(ROWS)
-
-    fieldnames = ["id", "input", "answer", "additional_context", "few_shot"]
-
-    print(f"Generating {ROWS} rows, model={MODEL}, out={OUT}, sleep={SLEEP}s")
-
-    with open(OUT, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-
-        for i, row in enumerate(rows):
-            prompt = build_prompt_for_row(row)
-            try:
-                text = call_model_for_fewshot(prompt, MODEL)
-                # try to parse JSON out of the model response; be forgiving
-                parsed = None
+            messages = [{"role": "user", "content": prompt}]
+            resp = litellm.completion(model=model_name, messages=messages)
+            if hasattr(resp, "choices") and len(resp.choices) > 0:
                 try:
-                    parsed = json.loads(text)
+                    return resp.choices[0].message.content
                 except Exception:
-                    # attempt to extract the first JSON array in text
-                    import re
+                    return str(resp)
+            return str(resp)
+        except Exception:
+            pass
 
-                    m = re.search(r"(\[.*\])", text, flags=re.S)
-                    if m:
-                        try:
-                            parsed = json.loads(m.group(1))
-                        except Exception:
-                            parsed = None
+        # Fallback: openai
+        try:
+            import openai
 
-                few_shot_val = parsed if parsed is not None else text
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                openai.api_key = api_key
+            resp = openai.ChatCompletion.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=512,
+            )
+            choices = resp.get("choices", [])
+            if choices:
+                return choices[0].get("message", {}).get("content", "")
+            return json.dumps(resp)
+        except Exception as e:
+            raise RuntimeError(
+                "No supported LLM client found (litellm or openai). Install one and set appropriate env vars/API keys. "
+                f"Underlying error: {e}"
+            )
+
+
+    def _build_prompt_for_row(self, row: Dict[str, Any]) -> str:
+        header = (
+            "You are given a claim verification example. Produce exactly 3 few-shot examples (short) "
+            "that are formatted as JSON array of objects with keys: 'input' and 'label' where label is either 'SUPPORTED' or 'NOT_SUPPORTED'.\n\n"
+        )
+        original = "Original example:\n" + row["input"] + "\n\n"
+        example_json = (
+            "Return only a JSON array, e.g.:\n"
+            "[\n"
+            "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"SUPPORTED\"},\n"
+            "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"NOT_SUPPORTED\"},\n"
+            "  {\"input\": \"Claim: ... Context: ...\", \"label\": \"SUPPORTED\"}\n"
+            "]\n\n"
+        )
+        footer = "Keep each example short (one or two sentences per 'input').\n"
+        return header + original + example_json + footer
+
+
+    def _parse_model_response(self, text: str):
+        parsed = None
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            import re
+
+            m = re.search(r"(\[.*\])", text, flags=re.S)
+            if m:
+                try:
+                    parsed = json.loads(m.group(1))
+                except Exception:
+                    parsed = None
+
+        return parsed if parsed is not None else text
+
+    def _row_to_outrow(self, idx: int, row: Dict[str, Any], few_shot_val) -> Dict[str, Any]:
+        return {
+            "id": idx,
+            "input": row.get("input", ""),
+            "answer": row.get("answer"),
+            "additional_context": json.dumps(row.get("additional_context", {})),
+            "few_shot": json.dumps(few_shot_val) if not isinstance(few_shot_val, str) else json.dumps({"raw": few_shot_val}),
+        }
+
+    def generate_for_examples(self, examples: List[Dict[str, Any]], out_file: str | None = None, max_rows: int | None = None):
+        """Generate few-shot entries for the supplied examples.
+
+        examples: list of dicts with at least 'input' and optionally 'answer' and 'additional_context'
+        out_file: if provided, write CSV in the same format as before
+        max_rows: limit how many rows to process (None -> all)
+        Returns list of output rows (dicts)
+        """
+        if max_rows is None:
+            max_rows = len(examples)
+
+        fieldnames = ["id", "input", "answer", "additional_context", "few_shot"]
+        out_rows: List[Dict[str, Any]] = []
+
+        for i, row in enumerate(examples[:max_rows]):
+            prompt = self._build_prompt_for_row(row)
+            try:
+                text = self._call_model(prompt)
+                few_shot_val = self._parse_model_response(text)
             except Exception as e:
                 few_shot_val = f"ERROR: {e}"
 
-            out_row = {
-                "id": row["id"],
-                "input": row["input"],
-                "answer": row["answer"],
-                "additional_context": json.dumps(row["additional_context"]),
-                "few_shot": json.dumps(few_shot_val) if not isinstance(few_shot_val, str) else json.dumps({"raw": few_shot_val}),
-            }
-            writer.writerow(out_row)
+            out_row = self._row_to_outrow(i, row, few_shot_val)
+            out_rows.append(out_row)
 
             if i % 10 == 0:
-                print(f"Processed {i+1}/{len(rows)} rows")
+                print(f"Processed {i+1}/{min(len(examples), max_rows)} rows")
 
-            time.sleep(SLEEP)
+            time.sleep(self.sleep)
 
-    print(f"Wrote augmented dataset to {OUT}")
+        if out_file:
+            with open(out_file, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for r in out_rows:
+                    writer.writerow(r)
+            print(f"Wrote augmented dataset to {out_file}")
+
+        return out_rows
+
+
+def main():
+    # Backwards-compatible CLI: behave like previous script when executed directly
+    gen = FewShotGenerator()
+    rows = generate_rows(100)
+    gen.generate_for_examples(rows, out_file="hover_fewshot.csv", max_rows=100)
 
 
 if __name__ == "__main__":
