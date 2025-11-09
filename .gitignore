@@ -75,7 +75,6 @@ ehthumbs.db
 Thumbs.db
 
 # Results and logs
-results/
 logs/
 *.log
 

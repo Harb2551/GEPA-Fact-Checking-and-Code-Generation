@@ -1,0 +1,25 @@
+{
+  "timestamp": "20251108_234110",
+  "test_size": 5,
+  "baseline": {
+    "accuracy": 1.0,
+    "correct": 5,
+    "total": 5
+  },
+  "optimized": {
+    "accuracy": 1.0,
+    "correct": 5,
+    "total": 5,
+    "delta_absolute": 0.0,
+    "delta_percent": 0.0,
+    "additional_correct": 0
+  },
+  "fewshot_optimized": {
+    "accuracy": 0.8,
+    "correct": 4,
+    "total": 5,
+    "delta_absolute": -0.19999999999999996,
+    "delta_percent": -19.999999999999996,
+    "additional_correct": -1
+  }
+}

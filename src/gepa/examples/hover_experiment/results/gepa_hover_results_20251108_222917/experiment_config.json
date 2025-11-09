@@ -1,0 +1,38 @@
+{
+  "experiment_info": {
+    "timestamp": "2025-11-08T22:29:24.003722",
+    "run_directory": "./results/gepa_hover_results_20251108_222917"
+  },
+  "hyperparameters": {
+    "train_size": 100,
+    "val_size": 30,
+    "reflection_minibatch_size": 5,
+    "max_metric_calls": 10,
+    "task_lm": "gpt-4.1-mini",
+    "reflection_lm": "gpt-5",
+    "use_custom_adapter": true,
+    "litellm_max_workers": 2,
+    "use_few_shot": true,
+    "few_shot_file_used": true,
+    "few_shot_rows": 100
+  },
+  "results": {
+    "best_prompt_index": 0,
+    "best_prompt_score": 0.6666666666666666,
+    "seed_prompt_score": 0.6666666666666666,
+    "improvement_over_seed": 0.0,
+    "improvement_percentage": 0.0,
+    "pareto_front_score": 1.0,
+    "pareto_improvement": 0.33333333333333337,
+    "total_iterations": 1,
+    "total_metric_calls": 30,
+    "num_candidates_evaluated": 1,
+    "num_full_val_evals": 1
+  },
+  "all_candidate_scores": {
+    "candidate_0": 0.6666666666666666
+  },
+  "seed_prompt": {
+    "system_prompt": "Given a claim and an evidence Answer SUPPORTED or NOT_SUPPORTED."
+  }
+}

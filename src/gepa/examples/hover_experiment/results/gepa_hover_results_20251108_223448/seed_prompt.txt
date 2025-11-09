@@ -1,0 +1,1 @@
+Given a claim and an evidence Answer SUPPORTED or NOT_SUPPORTED.
