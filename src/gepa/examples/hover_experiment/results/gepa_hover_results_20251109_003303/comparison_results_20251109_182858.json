@@ -1,0 +1,30 @@
+{
+  "timestamp": "20251109_182858",
+  "test_size": 500,
+  "few_shot": {
+    "injected": false,
+    "file": null,
+    "k": 3
+  },
+  "baseline": {
+    "accuracy": 0.628,
+    "correct": 314,
+    "total": 500
+  },
+  "optimized": {
+    "accuracy": 0.654,
+    "correct": 327,
+    "total": 500,
+    "delta_absolute": 0.026000000000000023,
+    "delta_percent": 4.140127388535036,
+    "additional_correct": 13
+  },
+  "fewshot_optimized": {
+    "accuracy": 0.622,
+    "correct": 311,
+    "total": 500,
+    "delta_absolute": -0.006000000000000005,
+    "delta_percent": -0.9554140127388543,
+    "additional_correct": -3
+  }
+}

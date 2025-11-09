@@ -69,7 +69,7 @@ BATCH_SIZE = 50
 # (named by FEWSHOT_TEST_FILE). If the file is missing it will be generated
 # from the test examples using FewShotGenerator and written into the
 # few-shot run directory when available or into CWD otherwise.
-USE_FEWSHOT_FOR_EVAL = True
+USE_FEWSHOT_FOR_EVAL = False
 FEWSHOT_TEST_FILE = "hover_fewshot_test.csv"
 FEWSHOT_K = 3
 
@@ -377,26 +377,62 @@ class TestEvaluationOrchestrator:
     
     def _load_test_data(self) -> List[Dict]:
         """Load and convert test data"""
-        print("Loading HoVer dataset...")
+        # First, prefer a CSV produced by the few-shot generator if present.
+        # The CSV may contain few_shot entries or may be a 0-shot CSV (no few_shot).
+        candidates_csv = [Path.cwd() / FEWSHOT_TEST_FILE, self.run_dir / FEWSHOT_TEST_FILE]
+        for c in candidates_csv:
+            if c.exists():
+                try:
+                    print(f"Loading test examples from CSV: {c}")
+                    test_examples = []
+                    with open(c, newline='', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        for r in reader:
+                            inp = r.get('input')
+                            ans = r.get('answer')
+                            add_ctx = {}
+                            try:
+                                add_ctx = json.loads(r.get('additional_context') or '{}')
+                            except Exception:
+                                add_ctx = {}
+                            ex = {'input': inp, 'answer': ans, 'additional_context': add_ctx}
+                            # attach few_shot only when configured to use few-shot for eval
+                            if USE_FEWSHOT_FOR_EVAL:
+                                fs = r.get('few_shot')
+                                if fs:
+                                    try:
+                                        parsed = json.loads(fs)
+                                    except Exception:
+                                        parsed = fs
+                                    ex['few_shot'] = parsed
+                            test_examples.append(self.data_formatter.hover_to_gepa_format(ex) if hasattr(self.data_formatter, 'hover_to_gepa_format') else ex)
+                    random.shuffle(test_examples)
+                    test_examples = test_examples[:self.test_size]
+                    print(f"✓ Using {len(test_examples)} test examples from CSV: {c}")
+                    return test_examples
+                except Exception as e:
+                    print(f"Warning: failed to load test CSV {c}: {e}")
+
+        # Fallback: load from Hugging Face dataset
+        print("Loading HoVer dataset from Hugging Face...")
         ds = load_dataset("Dzeniks/hover")
-        
         # Use validation split as test set (or test split if available)
         if 'test' in ds:
             test_data = ds['test']
-        
+
         print(f"Available test examples: {len(test_data)}")
-        
+
         # Shuffle the test data for randomized evaluation
         test_data_list = list(test_data)
         random.shuffle(test_data_list)
         print("✓ Test data shuffled for randomized evaluation")
-        
+
         # Convert to GEPA format
         print("Converting to GEPA format...")
         test_examples = [self.data_formatter.hover_to_gepa_format(ex) for ex in test_data_list]
         test_examples = test_examples[:self.test_size]
         print(f"✓ Using {len(test_examples)} test examples")
-        
+
         return test_examples
     
     def _load_prompts(self) -> Tuple[Dict, Dict]:
