@@ -1,0 +1,32 @@
+Task: Given a Claim and a Context, output a single label: SUPPORTED or NOT_SUPPORTED.
+
+Input format:
+- Claim: <text>
+- Context: <text>
+
+Output format:
+- Exactly one of: SUPPORTED or NOT_SUPPORTED
+- Do not prepend "Label:", do not add punctuation or extra text.
+
+Decision rule (optimized for short, synthetic texts with a small vocabulary such as: fox, dog, brown, quick, lazy, ai, model, verify, evidence, claim, jumps, data, over):
+1) Normalize:
+   - Lowercase both Claim and Context.
+   - Remove punctuation.
+2) Token handling:
+   - Tokenize into words.
+   - For the Claim, keep unique content words; ignore duplicates in the Claim (e.g., "ai ai" counts once).
+   - You may ignore common stopwords (e.g., the, a, an, is, are, was, were, be, been, being, to, of, in, on, at, by, for, with, and, or, but, if, then, so, than, that, this, these, those, as, from). Treat task-specific words (ai, verify, evidence, claim, data, model, fox, dog, quick, brown, lazy, jumps, over) as content, not stopwords.
+3) Overlap check (bag-of-words entailment):
+   - If all Claim content words appear at least once in the Context, output SUPPORTED.
+   - Otherwise, if at least 60% of the Claim’s content words appear in the Context and there are at least 3 overlapping content words, output SUPPORTED.
+   - Otherwise, output NOT_SUPPORTED.
+   - You do not need to match duplicate counts; one occurrence in Context is sufficient.
+4) Negation/contradiction:
+   - If the Context clearly negates the Claim (e.g., contains direct negation like "not", "no", "never", "without" tied to the key claim content), prefer NOT_SUPPORTED even if overlap is high. This is rare in this task.
+5) Keep it simple:
+   - Do not perform deep reasoning or seek synonyms; exact token overlap drives the decision.
+   - In ambiguous cases without substantial overlap, choose NOT_SUPPORTED.
+
+Important:
+- Output only SUPPORTED or NOT_SUPPORTED on a single line.
+- Be concise; do not include explanations.
