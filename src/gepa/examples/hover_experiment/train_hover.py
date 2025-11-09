@@ -30,6 +30,8 @@ from pathlib import Path
 from datetime import datetime
 from experiment_logger import ExperimentLogger
 from evaluation.data_formatter import DataFormatter
+import csv
+import json
 
 # Load environment variables from .env file
 # Load environment variables from repo root (searching upward)
@@ -69,6 +71,12 @@ LITELLM_MAX_WORKERS = 2  # Reduce parallel requests to avoid rate limits
 TASK_LM = "gpt-4.1-mini"  # LLM for task execution
 REFLECTION_LM = "gpt-5"  # LLM for reflection
 
+# Few-shot configuration: when True, train_hover will look for FEWSHOT_FILE;
+# if it's missing it will run the local generator to create it, then attach
+# the few-shot examples to training rows under the 'few_shot' key.
+USE_FEWSHOT = True
+FEWSHOT_FILE = "hover_fewshot.csv"
+
 # Set seed for reproducibility
 random.seed(42)
 
@@ -104,6 +112,80 @@ def main():
     
     print(f"Training examples: {len(trainset)}")
     print(f"Validation examples: {len(valset)}")
+
+    # Track whether a few-shot file was used/generated for this run. This
+    # will be stored in the experiment config so runs can record if few-shot
+    # was active and whether the CSV was present or created.
+    few_shot_file_used = False
+
+    # If few-shot mode is enabled, prefer using the FEWSHOT_FILE as the
+    # authoritative source for the training set so few-shot rows map exactly
+    # to the examples they were generated for. If the file is missing, run the
+    # generator to create it.
+    if USE_FEWSHOT:
+        if not os.path.exists(FEWSHOT_FILE):
+            print(f"Few-shot file '{FEWSHOT_FILE}' not found — generating it now...")
+            try:
+                # Import the generator module and run its main() to produce the CSV
+                import generate_fewshot_dataset as _gfs
+                _gfs.main()
+            except Exception as e:
+                print(f"Failed to generate few-shot dataset: {e}")
+                raise
+            # If generation succeeded, mark the CSV as used/created
+            if os.path.exists(FEWSHOT_FILE):
+                few_shot_file_used = True
+        else:
+            # File already present and will be used
+            few_shot_file_used = True
+
+        # Load CSV rows produced by the generator. Expect columns: id,input,answer,additional_context,few_shot
+        csv_rows = []
+        with open(FEWSHOT_FILE, "r", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            for r in reader:
+                try:
+                    few = json.loads(r.get("few_shot", "null"))
+                except Exception:
+                    few = {"raw": r.get("few_shot", "")}
+                csv_rows.append({
+                    "input": r.get("input", ""),
+                    "answer": r.get("answer", ""),
+                    "additional_context": json.loads(r.get("additional_context", "{}")) if r.get("additional_context") else {},
+                    "few_shot": few,
+                })
+
+        # record how many rows came from the few-shot CSV
+        few_shot_rows = len(csv_rows)
+
+        # Build lookup from HF-derived examples by exact input match
+        input_to_example = {ex['input']: ex for ex in all_examples}
+
+        # Construct trainset from CSV rows, preferring the canonical HF example
+        trainset = []
+        for row in csv_rows:
+            inp = row['input']
+            if inp in input_to_example:
+                ex = input_to_example[inp].copy()
+                ex['few_shot'] = row.get('few_shot')
+            else:
+                ex = {
+                    'input': inp,
+                    'answer': row.get('answer'),
+                    'additional_context': row.get('additional_context', {}),
+                    'few_shot': row.get('few_shot')
+                }
+            trainset.append(ex)
+
+        # Validation set: examples not used in trainset
+        train_inputs = {ex['input'] for ex in trainset}
+        valset = [ex for ex in all_examples if ex['input'] not in train_inputs]
+
+        print(f"Training examples (from CSV): {len(trainset)}")
+        print(f"Validation examples (remaining): {len(valset)}")
+    else:
+        few_shot_rows = 0
+        few_shot_file_used = False
     
     # 4. Preview one example
     print("\n" + "="*60)
@@ -224,6 +306,10 @@ def main():
         "reflection_lm": REFLECTION_LM,
         "use_custom_adapter": USE_CUSTOM_ADAPTER,
         "litellm_max_workers": LITELLM_MAX_WORKERS,
+        # Few-shot metadata
+        "use_few_shot": USE_FEWSHOT,
+        "few_shot_file_used": few_shot_file_used,
+        "few_shot_rows": few_shot_rows,
     }
     
     # Create logger instance and save configuration
