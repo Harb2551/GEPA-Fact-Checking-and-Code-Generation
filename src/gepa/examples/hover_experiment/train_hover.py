@@ -131,7 +131,16 @@ def main():
 
                 gen = FewShotGenerator(model_name=os.getenv("FEWSHOT_MODEL", None), sleep=1.0)
                 # Generate few-shot examples based on the canonical all_examples list
-                gen.generate_for_examples(all_examples, out_file=FEWSHOT_FILE, max_rows=TRAIN_SIZE)
+                # Persist a JSON checkpoint and a deterministic testset JSON alongside the CSV
+                checkpoint_json = FEWSHOT_FILE + ".checkpoint.json"
+                testset_json = FEWSHOT_FILE + ".testset.json"
+                gen.generate_for_examples(
+                    all_examples,
+                    out_file=FEWSHOT_FILE,
+                    max_rows=TRAIN_SIZE,
+                    checkpoint_file=checkpoint_json,
+                    testset_file=testset_json,
+                )
             except Exception as e:
                 print(f"Failed to generate few-shot dataset: {e}")
                 raise

@@ -22,7 +22,15 @@ import os
 import random
 import string
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Literal
+
+# Optional pydantic for structured validation of LM outputs
+try:
+    from pydantic import BaseModel, ValidationError, validator
+except Exception:
+    BaseModel = None
+    ValidationError = None
+    validator = None
 
 
 # Small synthetic text generator (no external deps)
@@ -131,20 +139,57 @@ class FewShotGenerator:
 
 
     def _parse_model_response(self, text: str):
-        parsed = None
+        """
+        Strictly parse and validate the model response using pydantic.
+
+        This function expects the model output to be a JSON array of objects
+        with keys 'input' (str) and 'label' (str). Validation is performed by
+        a local pydantic model. If pydantic is not installed or validation
+        fails, this function raises an exception — we intentionally do not
+        fall back to heuristic parsing here to keep behavior deterministic.
+        """
+        if BaseModel is None:
+            raise RuntimeError(
+                "pydantic is required for strict LM output validation."
+                " Install it with `pip install pydantic` and retry."
+            )
+
+        # Parse the raw text as JSON. If this fails, raise a clear error.
         try:
             parsed = json.loads(text)
-        except Exception:
-            import re
+        except Exception as e:
+            raise ValueError(f"Failed to parse model output as JSON: {e}\nOutput:\n{text}")
 
-            m = re.search(r"(\[.*\])", text, flags=re.S)
-            if m:
-                try:
-                    parsed = json.loads(m.group(1))
-                except Exception:
-                    parsed = None
+        # Validate the structure with pydantic
+        class _FewShotExample(BaseModel):
+            input: str
+            label: str
 
-        return parsed if parsed is not None else text
+            @validator("label")
+            def _label_must_be_supported(cls, v: str) -> str:
+                if v is None:
+                    raise ValueError("label missing")
+                vv = v.strip().upper()
+                if vv not in ("SUPPORTED", "NOT_SUPPORTED"):
+                    raise ValueError("label must be SUPPORTED or NOT_SUPPORTED")
+                return vv
+
+        if not isinstance(parsed, list):
+            raise ValueError(f"Expected a JSON array of examples, got: {type(parsed)}")
+
+        validated: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        for idx, item in enumerate(parsed):
+            try:
+                m = _FewShotExample.parse_obj(item)
+                validated.append({"input": m.input, "label": m.label})
+            except ValidationError as ve:
+                errors.append(f"item {idx}: {ve}")
+
+        if errors:
+            raise ValueError("Few-shot validation failed:\n" + "\n".join(errors))
+
+        return validated
 
     def _row_to_outrow(self, idx: int, row: Dict[str, Any], few_shot_val) -> Dict[str, Any]:
         return {
@@ -155,7 +200,7 @@ class FewShotGenerator:
             "few_shot": json.dumps(few_shot_val) if not isinstance(few_shot_val, str) else json.dumps({"raw": few_shot_val}),
         }
 
-    def generate_for_examples(self, examples: List[Dict[str, Any]], out_file: str | None = None, max_rows: int | None = None):
+    def generate_for_examples(self, examples: List[Dict[str, Any]], out_file: str | None = None, max_rows: int | None = None, checkpoint_file: str | None = None, testset_file: str | None = None):
         """Generate few-shot entries for the supplied examples.
 
         examples: list of dicts with at least 'input' and optionally 'answer' and 'additional_context'
@@ -169,68 +214,164 @@ class FewShotGenerator:
         fieldnames = ["id", "input", "answer", "additional_context", "few_shot"]
         out_rows: List[Dict[str, Any]] = []
 
-        # Build prompts for each row
-        rows_to_process = examples[:max_rows]
+        # Build or load the testset (so random selection is reproducible across runs)
+        if testset_file and os.path.exists(testset_file):
+            try:
+                with open(testset_file, 'r', encoding='utf-8') as tf:
+                    rows_to_process = json.load(tf)
+                # Ensure we don't exceed requested max_rows
+                rows_to_process = rows_to_process[:max_rows]
+            except Exception:
+                print(f"Warning: failed to read testset_file {testset_file}; falling back to provided examples")
+                rows_to_process = examples[:max_rows]
+        else:
+            rows_to_process = examples[:max_rows]
+            if testset_file:
+                try:
+                    with open(testset_file, 'w', encoding='utf-8') as tf:
+                        json.dump(rows_to_process, tf, ensure_ascii=False, indent=2)
+                except Exception:
+                    print(f"Warning: failed to write testset_file {testset_file}")
+
         prompts = [self._build_prompt_for_row(r) for r in rows_to_process]
 
         outputs: List[str] = []
 
-        # Try litellm.batch_completion first (preferred fast path)
-        try:
-            import litellm
-
-            # Process in chunks to avoid sending too many requests at once
-            for chunk_start in range(0, len(prompts), self.chunk_size):
-                chunk = prompts[chunk_start:chunk_start + self.chunk_size]
-                messages = [{"role": "user", "content": p} for p in chunk]
-                try:
-                    resp_list = litellm.batch_completion(model=self.model_name, messages=messages, max_workers=self.max_workers)
-                    # Extract text for each response
-                    for resp in resp_list:
-                        txt = ""
-                        try:
-                            if hasattr(resp, 'choices') and len(resp.choices) > 0:
-                                txt = resp.choices[0].message.content
-                            else:
-                                txt = str(resp)
-                        except Exception:
-                            txt = str(resp)
-                        outputs.append(txt)
-                except Exception as e:
-                    # If batch call fails for this chunk, raise to fallback below
-                    print(f"Warning: litellm.batch_completion failed for chunk: {e}")
-                    raise
-        except Exception:
-            # Fallback to threaded calls with retries
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-
-            def call_with_retry(prompt_text: str, attempts: int = None) -> str:
-                attempts = attempts if attempts is not None else self.retries
-                last_exc = None
-                for attempt in range(attempts + 1):
-                    try:
-                        return self._call_model(prompt_text)
-                    except Exception as e:
-                        last_exc = e
-                        backoff = 2 ** attempt
-                        time.sleep(min(backoff, 5))
-                raise last_exc
-
-            with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
-                future_to_idx = {ex.submit(call_with_retry, p): idx for idx, p in enumerate(prompts)}
-                outputs = [None] * len(prompts)
-                for fut in as_completed(future_to_idx):
-                    idx = future_to_idx[fut]
-                    try:
-                        res = fut.result()
-                    except Exception as e:
-                        res = f"ERROR: {e}"
-                    outputs[idx] = res
-
-        # Post-process outputs and build CSV rows
-        for i, (row, out_text) in enumerate(zip(rows_to_process, outputs)):
+        # Load checkpoint which now is a JSON file storing processed indices
+        processed_indices = set()
+        if checkpoint_file and os.path.exists(checkpoint_file):
             try:
-                few_shot_val = self._parse_model_response(out_text)
+                with open(checkpoint_file, 'r', encoding='utf-8') as cf:
+                    data = json.load(cf)
+                    if isinstance(data, dict) and 'processed_indices' in data:
+                        processed_indices = set(data.get('processed_indices', []))
+            except Exception:
+                print(f"Warning: failed to read checkpoint file {checkpoint_file}; starting fresh")
+
+        # Also detect any already-populated few_shot fields in the testset and mark them processed
+        for i, r in enumerate(rows_to_process):
+            if r.get('few_shot') is not None:
+                processed_indices.add(i)
+
+        # Helper: per-prompt retry using the single-call _call_model (used on
+        # parse failures or as a fallback for stubborn rows).
+        def _single_retry_generate(prompt_text: str, attempts: int = None) -> str:
+            attempts = attempts if attempts is not None else self.retries
+            last_exc = None
+            for attempt in range(attempts + 1):
+                try:
+                    return self._call_model(prompt_text)
+                except Exception as e:
+                    last_exc = e
+                    time.sleep(min(2 ** attempt, 5))
+            # If all attempts fail, return an error string to be recorded
+            return f"ERROR: {last_exc}"
+
+        # Single-call mode: call the model per-prompt using the retry helper.
+        # We removed the batched API to keep behavior simple and deterministic.
+        outputs = []
+        parsed_list: List[Optional[Any]] = []
+        total = len(prompts)
+
+        def _print_progress(cur: int, total: int):
+            pct = int((cur / total) * 100) if total else 100
+            width = 30
+            filled = int((pct / 100) * width)
+            bar = "#" * filled + "-" * (width - filled)
+            print(f"\r[{bar}] {pct:3d}% ({cur}/{total})", end="", flush=True)
+
+        counts = 0
+        for idx_prompt, prompt_text in enumerate(prompts, start=1):
+            i = idx_prompt - 1
+            # progress before sending
+            _print_progress(i, total)
+
+            # If this index is already processed (from checkpoint or testset), reuse it
+            if i in processed_indices:
+                existing = rows_to_process[i].get('few_shot')
+                txt = json.dumps(existing, ensure_ascii=False)
+                parsed_val = existing
+                outputs.append(txt)
+                parsed_list.append(parsed_val)
+                print(f"\nResuming from checkpoint for {idx_prompt}/{total}: index={i}")
+                # progress after sending
+                _print_progress(idx_prompt, total)
+                counts += 1
+                if counts % 10 == 0:
+                    print(f"\nGenerated {counts}/{total} prompts (from checkpoint)", flush=True)
+                continue
+
+            try:
+                txt = _single_retry_generate(prompt_text)
+                counts += 1
+            except Exception as e:
+                txt = f"ERROR: {e}"
+
+            # attempt to parse immediately and show parsed output
+            parsed_val: Optional[Any] = None
+            try:
+                parsed_val = self._parse_model_response(txt)
+                try:
+                    pretty = json.dumps(parsed_val, indent=2, ensure_ascii=False)
+                except Exception:
+                    pretty = str(parsed_val)
+                print(f"\nParsed response for {idx_prompt}/{total}:\n{pretty}")
+
+                # persist the successful parsed result: update rows_to_process and checkpoint/testset files
+                try:
+                    rows_to_process[i]['few_shot'] = parsed_val
+                    processed_indices.add(i)
+                    if checkpoint_file:
+                        tmp = checkpoint_file + '.tmp'
+                        with open(tmp, 'w', encoding='utf-8') as cf:
+                            json.dump({'processed_indices': sorted(list(processed_indices))}, cf, ensure_ascii=False, indent=2)
+                        os.replace(tmp, checkpoint_file)
+                    if testset_file:
+                        tmp2 = testset_file + '.tmp'
+                        with open(tmp2, 'w', encoding='utf-8') as tf:
+                            json.dump(rows_to_process, tf, ensure_ascii=False, indent=2)
+                        os.replace(tmp2, testset_file)
+                except Exception as e:
+                    print(f"Warning: failed to persist checkpoint/testset for index={i}: {e}")
+
+            except Exception as e:
+                print(f"\nParse failed for {idx_prompt}/{total}: {e}\nRaw: {txt}")
+
+            outputs.append(txt)
+            parsed_list.append(parsed_val)
+
+            # progress after sending
+            _print_progress(idx_prompt, total)
+            # notify every 10 generated prompts
+            if counts % 10 == 0:
+                print(f"\nGenerated {counts}/{total} prompts", flush=True)
+
+        # finish progress line
+        print()
+
+        # Post-process outputs and build CSV rows. If parsing returns a raw
+        # string (not a JSON array), retry a few times using single-call
+        # generator to reduce spurious error captures.
+        for i, (row, out_text) in enumerate(zip(rows_to_process, outputs)):
+            few_shot_val = None
+            try:
+                # reuse parsed value if available from generation step
+                parsed = parsed_list[i] if i < len(parsed_list) else None
+                if parsed is None:
+                    parsed = self._parse_model_response(out_text)
+                # If parsed is a plain string (i.e., parsing failed), retry
+                if isinstance(parsed, str):
+                    # Try a few single-call retries
+                    for attempt in range(self.retries):
+                        retry_text = _single_retry_generate(prompts[i])
+                        parsed2 = self._parse_model_response(retry_text)
+                        if not isinstance(parsed2, str):
+                            parsed = parsed2
+                            out_text = retry_text
+                            break
+                    few_shot_val = parsed
+                else:
+                    few_shot_val = parsed
             except Exception as e:
                 few_shot_val = f"ERROR: {e}"
 
@@ -255,7 +396,9 @@ def main():
     # Backwards-compatible CLI: behave like previous script when executed directly
     gen = FewShotGenerator()
     rows = generate_rows(100)
-    gen.generate_for_examples(rows, out_file="hover_fewshot.csv", max_rows=100)
+    checkpoint_json = "hover_fewshot.csv.checkpoint.json"
+    testset_json = "hover_fewshot.csv.testset.json"
+    gen.generate_for_examples(rows, out_file="hover_fewshot.csv", max_rows=100, checkpoint_file=checkpoint_json, testset_file=testset_json)
 
 
 if __name__ == "__main__":

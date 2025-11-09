@@ -1,0 +1,30 @@
+{
+  "timestamp": "20251109_025215",
+  "test_size": 10,
+  "few_shot": {
+    "injected": true,
+    "file": "/Users/hb25/Desktop/GEPA-Fact-Checking-and-Code-Generation/src/gepa/examples/hover_experiment/hover_fewshot_test.csv",
+    "k": 3
+  },
+  "baseline": {
+    "accuracy": 0.6,
+    "correct": 6,
+    "total": 10
+  },
+  "optimized": {
+    "accuracy": 0.6,
+    "correct": 6,
+    "total": 10,
+    "delta_absolute": 0.0,
+    "delta_percent": 0.0,
+    "additional_correct": 0
+  },
+  "fewshot_optimized": {
+    "accuracy": 0.8,
+    "correct": 8,
+    "total": 10,
+    "delta_absolute": 0.20000000000000007,
+    "delta_percent": 33.33333333333335,
+    "additional_correct": 2
+  }
+}

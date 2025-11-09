@@ -1,0 +1,86 @@
+{
+  "seed_prompt_results": [
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    }
+  ],
+  "optimized_prompt_results": [
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "NOT_SUPPORTED",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "NOT_SUPPORTED",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "",
+      "predicted_label": "NOT_SUPPORTED"
+    }
+  ]
+}

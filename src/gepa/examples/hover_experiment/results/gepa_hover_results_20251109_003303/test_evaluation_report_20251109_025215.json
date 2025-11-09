@@ -1,0 +1,45 @@
+{
+  "evaluation_info": {
+    "timestamp": "2025-11-09T02:52:15.469056",
+    "run_directory": "results/gepa_hover_results_20251109_003303",
+    "test_set_size": 10
+  },
+  "seed_prompt_performance": {
+    "accuracy": 0.6,
+    "correct": 6,
+    "total": 10,
+    "predicted_distribution": {
+      "SUPPORTED": 7,
+      "NOT_SUPPORTED": 3
+    },
+    "actual_distribution": {
+      "SUPPORTED": 7,
+      "NOT_SUPPORTED": 3
+    }
+  },
+  "optimized_prompt_performance": {
+    "accuracy": 0.6,
+    "correct": 6,
+    "total": 10,
+    "predicted_distribution": {
+      "SUPPORTED": 7,
+      "NOT_SUPPORTED": 3
+    },
+    "actual_distribution": {
+      "SUPPORTED": 7,
+      "NOT_SUPPORTED": 3
+    }
+  },
+  "comparison": {
+    "accuracy_improvement": 0.0,
+    "accuracy_improvement_percentage": 0.0,
+    "additional_correct_predictions": 0,
+    "relative_improvement": "60.00% vs 60.00%"
+  },
+  "summary": {
+    "seed_accuracy": "60.00%",
+    "optimized_accuracy": "60.00%",
+    "improvement": "0.00%",
+    "verdict": "NO_CHANGE"
+  }
+}

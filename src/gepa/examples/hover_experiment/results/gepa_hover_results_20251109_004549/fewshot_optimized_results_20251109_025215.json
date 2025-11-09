@@ -1,0 +1,55 @@
+{
+  "accuracy": 0.8,
+  "correct": 8,
+  "total": 10,
+  "predicted_distribution": {
+    "SUPPORTED": 9,
+    "NOT_SUPPORTED": 1
+  },
+  "actual_distribution": {
+    "SUPPORTED": 7,
+    "NOT_SUPPORTED": 3
+  },
+  "detailed_results": [
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "NOT_SUPPORTED",
+      "predicted_label": "NOT_SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    },
+    {
+      "full_response": "SUPPORTED",
+      "predicted_label": "SUPPORTED"
+    }
+  ]
+}
