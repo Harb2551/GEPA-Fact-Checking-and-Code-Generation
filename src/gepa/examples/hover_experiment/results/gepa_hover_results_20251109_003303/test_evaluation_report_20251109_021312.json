@@ -1,0 +1,45 @@
+{
+  "evaluation_info": {
+    "timestamp": "2025-11-09T02:13:12.784047",
+    "run_directory": "results/gepa_hover_results_20251109_003303",
+    "test_set_size": 10
+  },
+  "seed_prompt_performance": {
+    "accuracy": 0.6,
+    "correct": 6,
+    "total": 10,
+    "predicted_distribution": {
+      "SUPPORTED": 8,
+      "NOT_SUPPORTED": 2
+    },
+    "actual_distribution": {
+      "SUPPORTED": 6,
+      "NOT_SUPPORTED": 4
+    }
+  },
+  "optimized_prompt_performance": {
+    "accuracy": 0.5,
+    "correct": 5,
+    "total": 10,
+    "predicted_distribution": {
+      "SUPPORTED": 5,
+      "NOT_SUPPORTED": 5
+    },
+    "actual_distribution": {
+      "SUPPORTED": 6,
+      "NOT_SUPPORTED": 4
+    }
+  },
+  "comparison": {
+    "accuracy_improvement": -0.09999999999999998,
+    "accuracy_improvement_percentage": -16.666666666666664,
+    "additional_correct_predictions": -1,
+    "relative_improvement": "50.00% vs 60.00%"
+  },
+  "summary": {
+    "seed_accuracy": "60.00%",
+    "optimized_accuracy": "50.00%",
+    "improvement": "-10.00%",
+    "verdict": "DEGRADED"
+  }
+}

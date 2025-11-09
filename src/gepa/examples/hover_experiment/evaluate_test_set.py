@@ -58,7 +58,7 @@ RUN_DIR = "./results/gepa_hover_results_20251109_003303"
 # optimized_prompt.txt. If set, that optimized prompt will also be evaluated on
 # the same test set and results saved alongside the main run's reports.
 RUN_DIR_FEWSHOT = "./results/gepa_hover_results_20251109_004549"
-TEST_SIZE = 500
+TEST_SIZE = 10
 TASK_LM = "gpt-4.1-mini"
 MAX_WORKERS = 2
 BATCH_SIZE = 50

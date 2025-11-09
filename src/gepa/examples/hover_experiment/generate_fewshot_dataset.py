@@ -63,9 +63,13 @@ class FewShotGenerator:
         - generate_for_examples(examples, out_file, max_rows)
     """
 
-    def __init__(self, model_name: str | None = None, sleep: float = 1.0):
+    def __init__(self, model_name: str | None = None, sleep: float = 1.0, max_workers: int = 4, chunk_size: int = 32, retries: int = 2):
         self.model_name = model_name or os.getenv("FEWSHOT_MODEL", "gpt-5")
         self.sleep = sleep
+        # Parallel generation tuning
+        self.max_workers = max_workers
+        self.chunk_size = chunk_size
+        self.retries = retries
 
     def _call_model(self, prompt: str, model_name: str | None = None) -> str:
         model_name = model_name or self.model_name
@@ -165,11 +169,68 @@ class FewShotGenerator:
         fieldnames = ["id", "input", "answer", "additional_context", "few_shot"]
         out_rows: List[Dict[str, Any]] = []
 
-        for i, row in enumerate(examples[:max_rows]):
-            prompt = self._build_prompt_for_row(row)
+        # Build prompts for each row
+        rows_to_process = examples[:max_rows]
+        prompts = [self._build_prompt_for_row(r) for r in rows_to_process]
+
+        outputs: List[str] = []
+
+        # Try litellm.batch_completion first (preferred fast path)
+        try:
+            import litellm
+
+            # Process in chunks to avoid sending too many requests at once
+            for chunk_start in range(0, len(prompts), self.chunk_size):
+                chunk = prompts[chunk_start:chunk_start + self.chunk_size]
+                messages = [{"role": "user", "content": p} for p in chunk]
+                try:
+                    resp_list = litellm.batch_completion(model=self.model_name, messages=messages, max_workers=self.max_workers)
+                    # Extract text for each response
+                    for resp in resp_list:
+                        txt = ""
+                        try:
+                            if hasattr(resp, 'choices') and len(resp.choices) > 0:
+                                txt = resp.choices[0].message.content
+                            else:
+                                txt = str(resp)
+                        except Exception:
+                            txt = str(resp)
+                        outputs.append(txt)
+                except Exception as e:
+                    # If batch call fails for this chunk, raise to fallback below
+                    print(f"Warning: litellm.batch_completion failed for chunk: {e}")
+                    raise
+        except Exception:
+            # Fallback to threaded calls with retries
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            def call_with_retry(prompt_text: str, attempts: int = None) -> str:
+                attempts = attempts if attempts is not None else self.retries
+                last_exc = None
+                for attempt in range(attempts + 1):
+                    try:
+                        return self._call_model(prompt_text)
+                    except Exception as e:
+                        last_exc = e
+                        backoff = 2 ** attempt
+                        time.sleep(min(backoff, 5))
+                raise last_exc
+
+            with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
+                future_to_idx = {ex.submit(call_with_retry, p): idx for idx, p in enumerate(prompts)}
+                outputs = [None] * len(prompts)
+                for fut in as_completed(future_to_idx):
+                    idx = future_to_idx[fut]
+                    try:
+                        res = fut.result()
+                    except Exception as e:
+                        res = f"ERROR: {e}"
+                    outputs[idx] = res
+
+        # Post-process outputs and build CSV rows
+        for i, (row, out_text) in enumerate(zip(rows_to_process, outputs)):
             try:
-                text = self._call_model(prompt)
-                few_shot_val = self._parse_model_response(text)
+                few_shot_val = self._parse_model_response(out_text)
             except Exception as e:
                 few_shot_val = f"ERROR: {e}"
 
@@ -178,8 +239,6 @@ class FewShotGenerator:
 
             if i % 10 == 0:
                 print(f"Processed {i+1}/{min(len(examples), max_rows)} rows")
-
-            time.sleep(self.sleep)
 
         if out_file:
             with open(out_file, "w", newline="", encoding="utf-8") as f:
