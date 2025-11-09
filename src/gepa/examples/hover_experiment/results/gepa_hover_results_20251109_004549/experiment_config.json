@@ -1,0 +1,41 @@
+{
+  "experiment_info": {
+    "timestamp": "2025-11-09T00:56:34.506136",
+    "run_directory": "./results/gepa_hover_results_20251109_004549"
+  },
+  "hyperparameters": {
+    "train_size": 100,
+    "val_size": 30,
+    "reflection_minibatch_size": 5,
+    "max_metric_calls": 200,
+    "task_lm": "gpt-4.1-mini",
+    "reflection_lm": "gpt-5",
+    "use_custom_adapter": true,
+    "litellm_max_workers": 2,
+    "use_few_shot": true,
+    "few_shot_file_used": true,
+    "few_shot_rows": 100
+  },
+  "results": {
+    "best_prompt_index": 1,
+    "best_prompt_score": 0.7333333333333333,
+    "seed_prompt_score": 0.6333333333333333,
+    "improvement_over_seed": 0.09999999999999998,
+    "improvement_percentage": 15.789473684210522,
+    "pareto_front_score": 1.0,
+    "pareto_improvement": 0.2666666666666667,
+    "total_iterations": 4,
+    "total_metric_calls": 205,
+    "num_candidates_evaluated": 4,
+    "num_full_val_evals": 4
+  },
+  "all_candidate_scores": {
+    "candidate_0": 0.6333333333333333,
+    "candidate_1": 0.7333333333333333,
+    "candidate_2": 0.6,
+    "candidate_3": 0.6666666666666666
+  },
+  "seed_prompt": {
+    "system_prompt": "Given a claim and an evidence Answer SUPPORTED or NOT_SUPPORTED."
+  }
+}

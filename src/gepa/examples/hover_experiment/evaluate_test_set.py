@@ -46,12 +46,12 @@ _load_env()
 # =====================
 # USER CONFIGURABLE VARIABLES
 # =====================
-RUN_DIR = "./results/gepa_hover_results_20251108_053204"
+RUN_DIR = "./results/gepa_hover_results_20251109_003303"
 # Optional: path to a separate run directory that contains a few-shot-optimized
 # optimized_prompt.txt. If set, that optimized prompt will also be evaluated on
 # the same test set and results saved alongside the main run's reports.
-RUN_DIR_FEWSHOT = "./results/gepa_hover_results_20251108_222917"
-TEST_SIZE = 5
+RUN_DIR_FEWSHOT = "./results/gepa_hover_results_20251109_004549"
+TEST_SIZE = 500
 TASK_LM = "gpt-4.1-mini"
 MAX_WORKERS = 2
 BATCH_SIZE = 50

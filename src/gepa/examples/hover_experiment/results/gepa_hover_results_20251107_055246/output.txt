@@ -1,7 +1,0 @@
-Best Score: 36.67%
-Total Metric Calls: 512
-Number of Candidates Evaluated: 11
-iterations: 13
-train-size: 100
-val-size: 30
-minibatch: 7

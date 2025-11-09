@@ -1,0 +1,18 @@
+Task: Given a Claim and a set of Context statements, output exactly one label: SUPPORTED or NOT_SUPPORTED.
+
+How to decide:
+- Use only the provided Context. Do not use outside knowledge or assumptions.
+- Decompose the claim into its atomic facts. For SUPPORTED, every part must be explicitly supported by the Context (directly or by safely combining multiple Context lines). If any part is missing, not stated, or contradicted, answer NOT_SUPPORTED.
+- Safe combination: You may link facts across Context lines through a clearly identified common entity (e.g., “the team he joined in 2006” = West Ham United in one line; “the club relocated in 2016” in another → SUPPORTED).
+- Do not accept added qualifiers or specifics unless they are explicitly stated:
+  - Time qualifiers (e.g., “on the morning of…”) must be explicitly present. If only the date is given, time-of-day is NOT_SUPPORTED.
+  - Extra roles/titles (e.g., calling someone a “detective” when Context lists other occupations) make the claim NOT_SUPPORTED.
+  - Causal/attribution claims (e.g., “was the inspiration for…”) must be explicitly in Context.
+  - Descriptors like “request-stop” or “commonly used” must be directly supported; do not infer them from related entities unless explicitly tied.
+- You may treat “starred/appeared/acted in” as satisfied if the Context shows the person had a role in the film, unless the Context explicitly contradicts it.
+- If the claim stitches together multiple facts but the relationship between them is not clearly established in Context (e.g., assuming a connection implies completion date or usage pattern), answer NOT_SUPPORTED.
+- If any ambiguity remains about an essential part of the claim, answer NOT_SUPPORTED.
+
+Output format:
+- Return exactly one of: SUPPORTED or NOT_SUPPORTED
+- No explanations, punctuation, or extra text.
