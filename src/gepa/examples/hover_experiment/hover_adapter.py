@@ -311,9 +311,33 @@ class HoVerAdapter(GEPAAdapter[HoVerDataInst, HoVerTrajectory, HoVerRolloutOutpu
         # Prepare batch requests for LLM
         litellm_requests = []
         for data in batch:
+            # If the example contains few-shot examples (attached by train_hover),
+            # format them and prepend to the user content so the task model sees
+            # few-shot examples inline.
+            user_content = data['input']
+            if isinstance(data, dict) and data.get("few_shot"):
+                few = data.get("few_shot")
+                # few can be a list of example dicts or a raw string wrapper
+                try:
+                    if isinstance(few, list):
+                        examples_text = []
+                        for i_ex, ex in enumerate(few, start=1):
+                            inp = ex.get("input") if isinstance(ex, dict) else str(ex)
+                            lbl = ex.get("label") if isinstance(ex, dict) else ""
+                            examples_text.append(f"Example {i_ex}: {inp}\nLabel: {lbl}")
+                        few_text = "\n\n".join(examples_text)
+                    elif isinstance(few, dict) and "raw" in few:
+                        few_text = few["raw"]
+                    else:
+                        few_text = str(few)
+                except Exception:
+                    few_text = str(few)
+
+                user_content = f"Few-shot examples:\n{few_text}\n\nOriginal input:\n{user_content}"
+
             messages = [
                 {"role": "system", "content": system_content},
-                {"role": "user", "content": data['input']}
+                {"role": "user", "content": user_content}
             ]
             litellm_requests.append(messages)
         
@@ -447,7 +471,6 @@ Input: {data['input']}
 Response: {full_response}
 
 Notes:
-- Consider including few-shot examples if helpful
 - Keep prompt concise - the task model is ~8B parameters, avoid over-optimization
 - Focus on clarity over complexity"""
             
